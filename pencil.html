@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Pencil Canvas</title>
+    <style>
+        /* Optional: Basic styling */
+        body { margin: 0; background-color: #f0f0f0; }
+        #drawing-canvas { border: 1px solid #ccc; cursor: crosshair; }
+    </style>
+</head>
+<body>
+    <canvas id="drawing-canvas"></canvas>
+    <button id="toggle-straight">Toggle Straight Line Mode</button>
+    
+    <script src="PencilCanvas.js"></script>
+    <script>
+        // Initialize the library
+        const canvas = document.getElementById('drawing-canvas');
+        canvas.width = 800; // Set appropriate size
+        canvas.height = 600;
+        
+        const pencil = new PencilCanvas(canvas, {
+            color: '#336699', // A dark blue color, similar to your image
+            thickness: 4,     // Base thickness
+            density: 0.5      // How dense the texture is (0.1 to 1.0)
+        });
+
+        // Event listener for the straight-line toggle button
+        document.getElementById('toggle-straight').addEventListener('click', () => {
+            pencil.toggleStraightLineMode();
+            const mode = pencil.isStraightLineMode ? 'ON' : 'OFF';
+            console.log(`Straight Line Mode: ${mode}`);
+        });
+    </script>
+</body>
+</html>
