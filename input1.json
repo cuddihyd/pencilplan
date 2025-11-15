@@ -1,30 +1,90 @@
 {
-"tbeg": "2024-01-01",
-"tend": "2027-12-31",
-"pencilPressure": 0.6,
-"projectLines": [
-   {
-	"name": "build system x",
-	"tbeg": "2025-01-01",
-	"tend": "2025-06-01",
- 	"color": "blue",
-	"pencilPressure": 0.9
-   },
-   {
-	"name": "retire system y",
-	"tbeg": "2025-03-01",
-	"tend": "2025-09-01",
-	"color": "violet",
-	"pencilPressure": 0.7,
-	"pencilThickness": 4
-   },
-   {
-	"name": "do something",
-	"tbeg": "2025-07-01",
-	"tend": "2025-09-01",
-	"tailEnd": "2025-12-31",
-	"color": "darkGreen",
-	"pencilPressure": 0.7
-   }
-]
+	"tbeg": "2024-01-01",
+	"tend": "2027-12-31",
+	"pencilPressure": 0.6,
+	"epics": [
+		{
+			"name": "Big Thing",
+			"projectLines": [
+				{
+					"name": "retire system w",
+					"tbeg": "2025-03-01",
+					"tend": "2025-09-01",
+					"color": "blue",
+					"pencilPressure": 0.7,
+					"pencilThickness": 4
+				},
+				{
+					"name": "retire system w2",
+					"tbeg": "2025-03-01",
+					"tend": "2025-09-01",
+					"color": "blue",
+					"pencilPressure": 0.7,
+					"pencilThickness": 4
+				},
+				{
+					"name": "do something ww",
+					"tbeg": "2025-07-01",
+					"tend": "2025-09-01",
+					"tailEnd": "2025-12-31",
+					"color": "blue",
+					"pencilPressure": 0.7
+				}
+			]
+		},
+		{
+			"name": "Another Big Thing",
+			"projectLines": [
+				{
+					"name": "retire system xx",
+					"tbeg": "2026-01-01",
+					"tend": "2026-01-01",
+					"color": "violet",
+					"pencilPressure": 0.7,
+					"pencilThickness": 4
+				},
+				{
+					"name": "retire system xxx",
+					"tbeg": "2026-02-01",
+					"tend": "2026-07-01",
+					"color": "violet",
+					"pencilPressure": 0.7,
+					"pencilThickness": 4
+				},
+				{
+					"name": "do something xx",
+					"tbeg": "2026-08-01",
+					"tend": "2026-12-01",
+					"tailEnd": "2027-03-31",
+					"color": "violet",
+					"pencilPressure": 0.7
+				}
+			]
+		}
+	],
+	"projectLines": [
+		{
+			"name": "build system 0",
+			"tbeg": "2025-01-01",
+			"tend": "2025-06-01",
+			"color": "darkGreen",
+			"pencilPressure": 0.9
+		},
+		{
+			"name": "retire system 00",
+			"tbeg": "2025-03-01",
+			"tend": "2025-09-01",
+			"color": "darkGreen",
+			"pencilPressure": 0.7,
+			"pencilThickness": 4
+		},
+		{
+			"name": "do something 0",
+			"tbeg": "2025-07-01",
+			"tend": "2025-09-01",
+			"tailEnd": "2025-12-31",
+			"color": "darkGreen",
+			"pencilPressure": 0.7
+		}
+	]
 }

@@ -4,7 +4,7 @@ class TimelineRenderer {
         this.ctx = this.canvas.getContext('2d');
         this.pencil = null;
         this.data = null;
-        this.margin = { top: 80, bottom: 60, left: 120, right: 60 };
+        this.margin = { top: 120, bottom: 60, left: 120, right: 60 };
         this.lineHeight = 40;
         this.textHeight = 12;
         
@@ -95,47 +95,142 @@ class TimelineRenderer {
     }
 
     calculateTimelinePositions() {
-        if (!this.data || !this.data.projectLines) return [];
+        if (!this.data) return { projects: [], epics: [] };
 
         const startDate = this.parseDate(this.data.tbeg);
         const endDate = this.parseDate(this.data.tend);
         const totalDuration = endDate - startDate;
-        
         const timelineWidth = this.displayWidth - this.margin.left - this.margin.right;
         
-        const projects = this.data.projectLines.map(project => {
-            const projStart = this.parseDate(project.tbeg);
-            const projEnd = this.parseDate(project.tend);
-            const projTailEnd = project.tailEnd ? this.parseDate(project.tailEnd) : null;
-            
-            const startRatio = (projStart - startDate) / totalDuration;
-            const endRatio = (projEnd - startDate) / totalDuration;
-            const tailEndRatio = projTailEnd ? (projTailEnd - startDate) / totalDuration : null;
-            
-            const x1 = this.margin.left + (startRatio * timelineWidth);
-            const x2 = this.margin.left + (endRatio * timelineWidth);
-            const x3 = projTailEnd ? this.margin.left + (tailEndRatio * timelineWidth) : null;
-            
-            return {
-                ...project,
-                x1: Math.round(x1),
-                x2: Math.round(x2),
-                x3: x3 ? Math.round(x3) : null,
-                y: 0,
-                startDate: projStart,
-                endDate: projEnd,
-                tailEndDate: projTailEnd
-            };
+        let allProjects = [];
+        let epics = [];
+        
+        // Process standalone projects
+        if (this.data.projectLines) {
+            const standaloneProjects = this.data.projectLines.map(project => 
+                this.processProject(project, startDate, totalDuration, timelineWidth, null)
+            );
+            allProjects.push(...standaloneProjects);
+        }
+        
+        // Process epics and their projects
+        if (this.data.epics) {
+            this.data.epics.forEach((epic, epicIndex) => {
+                const epicProjects = epic.projectLines.map(project => 
+                    this.processProject(project, startDate, totalDuration, timelineWidth, epicIndex)
+                );
+                allProjects.push(...epicProjects);
+                
+                // Calculate epic boundaries
+                const minX = Math.min(...epicProjects.map(p => p.x1));
+                const maxX = Math.max(...epicProjects.map(p => p.x3 || p.x2));
+                
+                epics.push({
+                    name: epic.name,
+                    projects: epicProjects,
+                    x1: minX,
+                    x2: maxX,
+                    epicIndex: epicIndex
+                });
+            });
+        }
+        
+        const positionedProjects = this.resolveCollisions(allProjects);
+        
+        // Update epic y positions based only on projects within that epic
+        epics.forEach(epic => {
+            const epicProjects = positionedProjects.filter(p => p.epicIndex === epic.epicIndex);
+            if (epicProjects.length > 0) {
+                const epicProjectYs = epicProjects.map(p => p.y);
+                epic.minY = Math.min(...epicProjectYs);
+                epic.maxY = Math.max(...epicProjectYs);
+                
+                // Update epic x boundaries to match only its projects
+                epic.x1 = Math.min(...epicProjects.map(p => p.x1));
+                epic.x2 = Math.max(...epicProjects.map(p => p.x3 || p.x2));
+            }
         });
+        
+        return { projects: positionedProjects, epics: epics };
+    }
 
-        return this.resolveCollisions(projects);
+    processProject(project, startDate, totalDuration, timelineWidth, epicIndex) {
+        const projStart = this.parseDate(project.tbeg);
+        const projEnd = this.parseDate(project.tend);
+        const projTailEnd = project.tailEnd ? this.parseDate(project.tailEnd) : null;
+        
+        // Validate date ranges
+        if (projEnd < projStart) {
+            throw new Error(`Invalid date range for project "${project.name}": end date (${project.tend}) is before start date (${project.tbeg})`);
+        }
+        
+        if (projTailEnd && projTailEnd <= projEnd) {
+            throw new Error(`Invalid tailEnd for project "${project.name}": tailEnd (${project.tailEnd}) must be after tend (${project.tend})`);
+        }
+        
+        const startRatio = (projStart - startDate) / totalDuration;
+        const endRatio = (projEnd - startDate) / totalDuration;
+        const tailEndRatio = projTailEnd ? (projTailEnd - startDate) / totalDuration : null;
+        
+        const x1 = this.margin.left + (startRatio * timelineWidth);
+        const x2 = this.margin.left + (endRatio * timelineWidth);
+        const x3 = projTailEnd ? this.margin.left + (tailEndRatio * timelineWidth) : null;
+        
+        return {
+            ...project,
+            x1: Math.round(x1),
+            x2: Math.round(x2),
+            x3: x3 ? Math.round(x3) : null,
+            y: 0,
+            startDate: projStart,
+            endDate: projEnd,
+            tailEndDate: projTailEnd,
+            epicIndex: epicIndex
+        };
     }
 
     resolveCollisions(projects) {
         const sortedProjects = [...projects].sort((a, b) => a.startDate - b.startDate);
         const lanes = [];
+        const epicBoxes = [];
         
-        sortedProjects.forEach(project => {
+        // First pass: place epic projects in consecutive lanes
+        const epicGroups = {};
+        projects.forEach(project => {
+            if (project.epicIndex !== null) {
+                if (!epicGroups[project.epicIndex]) {
+                    epicGroups[project.epicIndex] = [];
+                }
+                epicGroups[project.epicIndex].push(project);
+            }
+        });
+        
+        // Place epic groups first
+        Object.keys(epicGroups).forEach(epicIndex => {
+            const epicProjects = epicGroups[epicIndex].sort((a, b) => a.startDate - b.startDate);
+            let epicStartLane = this.findAvailableLaneRange(lanes, epicProjects.length);
+            
+            epicProjects.forEach((project, index) => {
+                const laneIndex = epicStartLane + index;
+                if (!lanes[laneIndex]) {
+                    lanes[laneIndex] = [];
+                }
+                lanes[laneIndex].push(project);
+                project.y = this.margin.top + (laneIndex * this.lineHeight);
+            });
+            
+            // Record epic box boundaries for collision avoidance
+            const minX = Math.min(...epicProjects.map(p => p.x1));
+            const maxX = Math.max(...epicProjects.map(p => p.x3 || p.x2));
+            const minY = this.margin.top + (epicStartLane * this.lineHeight) - 25;
+            const maxY = this.margin.top + ((epicStartLane + epicProjects.length - 1) * this.lineHeight) + 15;
+            
+            epicBoxes.push({ minX, maxX, minY, maxY });
+        });
+        
+        // Second pass: place standalone projects avoiding epic boxes
+        const standaloneProjects = projects.filter(p => p.epicIndex === null);
+        standaloneProjects.forEach(project => {
             let laneIndex = 0;
             let placed = false;
             
@@ -144,19 +239,30 @@ class TimelineRenderer {
                     lanes[laneIndex] = [];
                 }
                 
-                const lane = lanes[laneIndex];
+                const proposedY = this.margin.top + (laneIndex * this.lineHeight);
                 let hasCollision = false;
                 
-                for (let existingProject of lane) {
+                // Check collision with existing projects in lane
+                for (let existingProject of lanes[laneIndex]) {
                     if (this.hasOverlap(project, existingProject)) {
                         hasCollision = true;
                         break;
                     }
                 }
                 
+                // Check collision with epic boxes
                 if (!hasCollision) {
-                    lane.push(project);
-                    project.y = this.margin.top + (laneIndex * this.lineHeight);
+                    for (let box of epicBoxes) {
+                        if (this.projectCollidesWithEpicBox(project, proposedY, box)) {
+                            hasCollision = true;
+                            break;
+                        }
+                    }
+                }
+                
+                if (!hasCollision) {
+                    lanes[laneIndex].push(project);
+                    project.y = proposedY;
                     placed = true;
                 } else {
                     laneIndex++;
@@ -165,6 +271,35 @@ class TimelineRenderer {
         });
         
         return projects;
+    }
+    
+    findAvailableLaneRange(lanes, neededLanes) {
+        let startLane = 0;
+        while (true) {
+            let available = true;
+            for (let i = 0; i < neededLanes; i++) {
+                if (lanes[startLane + i] && lanes[startLane + i].length > 0) {
+                    available = false;
+                    break;
+                }
+            }
+            if (available) return startLane;
+            startLane++;
+        }
+    }
+    
+    projectCollidesWithEpicBox(project, projectY, epicBox) {
+        const projectMinX = project.x1;
+        const projectMaxX = project.x3 || project.x2;
+        const buffer = 10;
+        
+        // Check horizontal overlap
+        const horizontalOverlap = !(projectMaxX + buffer < epicBox.minX || projectMinX - buffer > epicBox.maxX);
+        
+        // Check vertical overlap
+        const verticalOverlap = !(projectY + 15 < epicBox.minY || projectY - 15 > epicBox.maxY);
+        
+        return horizontalOverlap && verticalOverlap;
     }
 
     hasOverlap(project1, project2) {
@@ -177,16 +312,27 @@ class TimelineRenderer {
     renderTimeline() {
         this.clearCanvas();
         
-        if (!this.data || !this.data.projectLines) return;
+        if (!this.data) return;
 
-        const projects = this.calculateTimelinePositions();
+        const { projects, epics } = this.calculateTimelinePositions();
         
         this.drawTopTimeline();
         this.drawTimeAxis();
         
+        // Draw epic groupings first (backgrounds)
+        epics.forEach(epic => {
+            this.drawEpicGrouping(epic);
+        });
+        
+        // Draw project lines
         projects.forEach(project => {
             this.drawProjectLine(project);
             this.drawProjectLabel(project);
+        });
+        
+        // Draw epic labels last (on top)
+        epics.forEach(epic => {
+            this.drawEpicLabel(epic);
         });
     }
 
@@ -325,6 +471,35 @@ class TimelineRenderer {
         });
         
         this.ctx.restore();
+    }
+
+    drawEpicGrouping(epic) {
+        // Draw subtle background rectangle for epic grouping
+        const padding = 10;
+        const x = epic.x1 - padding;
+        const y = epic.minY - 25;
+        const width = (epic.x2 - epic.x1) + (padding * 2);
+        const height = (epic.maxY - epic.minY) + 40;
+        
+        this.ctx.fillStyle = 'rgba(200, 200, 255, 0.1)';
+        this.ctx.fillRect(x, y, width, height);
+        
+        // Draw subtle border
+        this.ctx.strokeStyle = 'rgba(150, 150, 200, 0.3)';
+        this.ctx.lineWidth = 1;
+        this.ctx.strokeRect(x, y, width, height);
+    }
+
+    drawEpicLabel(epic) {
+        // Position epic label above the grouped projects
+        const x = epic.x1;
+        const y = epic.minY - 30;
+        
+        this.ctx.fillStyle = '#444444';
+        this.ctx.font = 'bold 14px "Permanent Marker", cursive';
+        this.ctx.textAlign = 'left';
+        this.ctx.textBaseline = 'middle';
+        this.ctx.fillText(epic.name, x, y);
     }
 
     drawFadingTail(x1, y1, x2, y2, color = '#333333', thickness = 2, pressure = 1.0) {
