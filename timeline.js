@@ -478,20 +478,74 @@ class TimelineRenderer {
     }
 
     drawEpicGrouping(epic) {
-        // Draw subtle background rectangle for epic grouping
-        const padding = 10;
+        // Draw watercolor brushstroke background for epic grouping
+        const padding = 15;
         const x = epic.x1 - padding;
-        const y = epic.minY - 25;
+        const y = epic.minY - 35;
         const width = (epic.x2 - epic.x1) + (padding * 2);
-        const height = (epic.maxY - epic.minY) + 40;
+        const height = (epic.maxY - epic.minY) + 50;
         
-        this.ctx.fillStyle = 'rgba(200, 200, 255, 0.1)';
-        this.ctx.fillRect(x, y, width, height);
+        this.drawWatercolorBrushstroke(x, y, width, height);
+    }
+
+    drawWatercolorBrushstroke(x, y, width, height) {
+        // Draw very light pencil box with crosshatch fill
         
-        // Draw subtle border
-        this.ctx.strokeStyle = 'rgba(150, 150, 200, 0.3)';
-        this.ctx.lineWidth = 1;
-        this.ctx.strokeRect(x, y, width, height);
+        // First draw the crosshatch fill inside the box
+        this.drawLightCrosshatch(x, y, width, height);
+        
+        // Then draw the pencil box outline
+        this.drawLightPencilBox(x, y, width, height);
+    }
+
+    drawLightCrosshatch(x, y, width, height) {
+        const originalColor = this.pencil.options.color;
+        const originalThickness = this.pencil.options.thickness;
+        const originalAlpha = this.pencil.options.alpha;
+        
+        // Very light pencil settings for fill
+        this.pencil.options.color = '#DDDDDD';
+        this.pencil.options.thickness = 0.5;
+        this.pencil.options.alpha = 0.4;
+        
+        const spacing = 10;
+        
+        // Draw diagonal lines in one direction (45 degrees)
+        for (let offset = -height; offset < width; offset += spacing) {
+            const startX = x + offset;
+            const endX = startX + height;
+            this.pencil._drawPencilStroke(
+                Math.max(x, startX), 
+                startX < x ? y + (x - startX) : y,
+                Math.min(x + width, endX),
+                endX > x + width ? y + height - (endX - x - width) : y + height
+            );
+        }
+        
+        // Draw diagonal lines in other direction (-45 degrees)
+        for (let offset = 0; offset < width + height; offset += spacing) {
+            const startX = x + offset;
+            const endX = startX - height;
+            this.pencil._drawPencilStroke(
+                Math.min(x + width, startX),
+                startX > x + width ? y + (startX - x - width) : y,
+                Math.max(x, endX),
+                endX < x ? y + height - (x - endX) : y + height
+            );
+        }
+        
+        // Restore original settings
+        this.pencil.options.color = originalColor;
+        this.pencil.options.thickness = originalThickness;
+        this.pencil.options.alpha = originalAlpha;
+    }
+
+    drawLightPencilBox(x, y, width, height) {
+        // Draw pencil box outline
+        this.drawPencilLine(x, y, x + width, y, '#BBBBBB', 1, 0.6); // Top
+        this.drawPencilLine(x + width, y, x + width, y + height, '#BBBBBB', 1, 0.6); // Right
+        this.drawPencilLine(x + width, y + height, x, y + height, '#BBBBBB', 1, 0.6); // Bottom
+        this.drawPencilLine(x, y + height, x, y, '#BBBBBB', 1, 0.6); // Left
     }
 
     drawEpicLabel(epic) {
