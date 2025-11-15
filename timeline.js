@@ -13,8 +13,24 @@ class TimelineRenderer {
     }
 
     setupCanvas() {
-        this.canvas.width = 1200;
-        this.canvas.height = 800;
+        // High resolution rendering
+        const pixelRatio = window.devicePixelRatio || 1;
+        const scaleFactor = 2; // Additional scaling for better quality
+        const totalScale = pixelRatio * scaleFactor;
+        
+        this.displayWidth = 1200;
+        this.displayHeight = 800;
+        
+        this.canvas.width = this.displayWidth * totalScale;
+        this.canvas.height = this.displayHeight * totalScale;
+        this.canvas.style.width = this.displayWidth + 'px';
+        this.canvas.style.height = this.displayHeight + 'px';
+        
+        this.ctx.scale(totalScale, totalScale);
+        
+        // Store the scale for coordinate calculations
+        this.scale = totalScale;
+        
         this.pencil = new PencilCanvas(this.canvas, {
             color: '#336699',
             thickness: 4,
@@ -75,7 +91,7 @@ class TimelineRenderer {
     }
 
     clearCanvas() {
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        this.ctx.clearRect(0, 0, this.displayWidth, this.displayHeight);
     }
 
     calculateTimelinePositions() {
@@ -85,7 +101,7 @@ class TimelineRenderer {
         const endDate = this.parseDate(this.data.tend);
         const totalDuration = endDate - startDate;
         
-        const timelineWidth = this.canvas.width - this.margin.left - this.margin.right;
+        const timelineWidth = this.displayWidth - this.margin.left - this.margin.right;
         
         const projects = this.data.projectLines.map(project => {
             const projStart = this.parseDate(project.tbeg);
@@ -177,7 +193,7 @@ class TimelineRenderer {
     drawTopTimeline() {
         const startDate = this.parseDate(this.data.tbeg);
         const endDate = this.parseDate(this.data.tend);
-        const timelineWidth = this.canvas.width - this.margin.left - this.margin.right;
+        const timelineWidth = this.displayWidth - this.margin.left - this.margin.right;
         const totalDuration = endDate - startDate;
         
         const y = 30;
@@ -246,9 +262,9 @@ class TimelineRenderer {
     drawTimeAxis() {
         const startDate = this.parseDate(this.data.tbeg);
         const endDate = this.parseDate(this.data.tend);
-        const timelineWidth = this.canvas.width - this.margin.left - this.margin.right;
+        const timelineWidth = this.displayWidth - this.margin.left - this.margin.right;
         
-        const y = this.canvas.height - this.margin.bottom + 20;
+        const y = this.displayHeight - this.margin.bottom + 20;
         
         this.drawPencilLine(this.margin.left, y, this.margin.left + timelineWidth, y, '#666666', 1);
         
