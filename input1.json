@@ -2,6 +2,7 @@
 	"tbeg": "2024-01-01",
 	"tend": "2027-12-31",
 	"pencilPressure": 0.6,
+	"pencilResolution": 4.0,
 	"epics": [
 		{
 			"name": "Big Thing",
@@ -34,6 +35,7 @@
 		},
 		{
 			"name": "Another Big Thing",
+			"pencilPressure": "0.3",
 			"projectLines": [
 				{
 					"name": "retire system xx",

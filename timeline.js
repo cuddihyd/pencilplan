@@ -174,7 +174,8 @@ class TimelineRenderer {
                     projects: epicProjects,
                     x1: minX,
                     x2: maxX,
-                    epicIndex: epicIndex
+                    epicIndex: epicIndex,
+                    pencilPressure: parseFloat(epic.pencilPressure) || this.data.pencilPressure || 0.85
                 });
             });
         }
@@ -522,74 +523,49 @@ class TimelineRenderer {
     }
 
     drawEpicGrouping(epic) {
-        // Draw watercolor brushstroke background for epic grouping
+        // Draw pencil box with crosshatch fill using epic's pencil pressure
         const padding = 15;
         const x = epic.x1 - padding;
         const y = epic.minY - 35;
         const width = (epic.x2 - epic.x1) + (padding * 2);
         const height = (epic.maxY - epic.minY) + 50;
         
-        this.drawWatercolorBrushstroke(x, y, width, height);
+        this.drawPencilBox(x, y, width, height, epic.pencilPressure);
     }
 
-    drawWatercolorBrushstroke(x, y, width, height) {
-        // Draw very light pencil box with crosshatch fill
+    drawPencilBox(x, y, width, height, pressure = 0.3) {
+        // Draw pencil box with crosshatch fill using specified pressure
         
         // First draw the crosshatch fill inside the box
-        this.drawLightCrosshatch(x, y, width, height);
+        this.drawPencilCrosshatch(x, y, width, height, pressure);
         
         // Then draw the pencil box outline
-        this.drawLightPencilBox(x, y, width, height);
+        this.drawPencilBoxOutline(x, y, width, height, pressure);
     }
 
-    drawLightCrosshatch(x, y, width, height) {
-        const originalColor = this.pencil.options.color;
-        const originalThickness = this.pencil.options.thickness;
-        const originalAlpha = this.pencil.options.alpha;
+    drawPencilCrosshatch(x, y, width, height, pressure) {
+        this.ctx.save();
         
-        // Very light pencil settings for fill
-        this.pencil.options.color = '#DDDDDD';
-        this.pencil.options.thickness = 0.5;
-        this.pencil.options.alpha = 0.4;
+        // Create solid fill with pencil-like texture using canvas fill
+        const alpha = Math.max(0.1, pressure * 0.3);
+        const grayValue = Math.floor(220 - pressure * 50); // Darker with more pressure
         
-        const spacing = 10;
+        this.ctx.fillStyle = `rgba(${grayValue}, ${grayValue}, ${grayValue}, ${alpha})`;
+        this.ctx.fillRect(x, y, width, height);
         
-        // Draw diagonal lines in one direction (45 degrees)
-        for (let offset = -height; offset < width; offset += spacing) {
-            const startX = x + offset;
-            const endX = startX + height;
-            this.pencil._drawPencilStroke(
-                Math.max(x, startX), 
-                startX < x ? y + (x - startX) : y,
-                Math.min(x + width, endX),
-                endX > x + width ? y + height - (endX - x - width) : y + height
-            );
-        }
-        
-        // Draw diagonal lines in other direction (-45 degrees)
-        for (let offset = 0; offset < width + height; offset += spacing) {
-            const startX = x + offset;
-            const endX = startX - height;
-            this.pencil._drawPencilStroke(
-                Math.min(x + width, startX),
-                startX > x + width ? y + (startX - x - width) : y,
-                Math.max(x, endX),
-                endX < x ? y + height - (x - endX) : y + height
-            );
-        }
-        
-        // Restore original settings
-        this.pencil.options.color = originalColor;
-        this.pencil.options.thickness = originalThickness;
-        this.pencil.options.alpha = originalAlpha;
+        this.ctx.restore();
     }
 
-    drawLightPencilBox(x, y, width, height) {
+    drawPencilBoxOutline(x, y, width, height, pressure) {
+        const outlineColor = '#AAAAAA';
+        const outlineThickness = Math.max(0.5, pressure * 2);
+        const outlinePressure = Math.max(0.3, pressure * 0.8);
+        
         // Draw pencil box outline
-        this.drawPencilLine(x, y, x + width, y, '#BBBBBB', 1, 0.6); // Top
-        this.drawPencilLine(x + width, y, x + width, y + height, '#BBBBBB', 1, 0.6); // Right
-        this.drawPencilLine(x + width, y + height, x, y + height, '#BBBBBB', 1, 0.6); // Bottom
-        this.drawPencilLine(x, y + height, x, y, '#BBBBBB', 1, 0.6); // Left
+        this.drawPencilLine(x, y, x + width, y, outlineColor, outlineThickness, outlinePressure); // Top
+        this.drawPencilLine(x + width, y, x + width, y + height, outlineColor, outlineThickness, outlinePressure); // Right
+        this.drawPencilLine(x + width, y + height, x, y + height, outlineColor, outlineThickness, outlinePressure); // Bottom
+        this.drawPencilLine(x, y + height, x, y, outlineColor, outlineThickness, outlinePressure); // Left
     }
 
     drawEpicLabel(epic) {
@@ -629,19 +605,22 @@ class TimelineRenderer {
         const originalThickness = this.pencil.options.thickness;
         const originalAlpha = this.pencil.options.alpha;
         
+        // Get pencil resolution from data
+        const resolution = this.data?.pencilResolution || 1.0;
+        
         this.pencil.options.color = color;
-        this.pencil.options.thickness = Math.max(1, thickness * 0.5); // Smaller base thickness
+        this.pencil.options.thickness = Math.max(1, (thickness * 0.5) / resolution); // Smaller dots with higher resolution
         this.pencil.options.alpha = originalAlpha * pressure;
         
-        // Increase stroke count to compensate for smaller dots
-        const baseStrokes = 16; // Doubled from 8
+        // Adjust stroke count and segments based on resolution
+        const baseStrokes = Math.round(16 * resolution); // More strokes with higher resolution
         const numStrokes = Math.max(1, Math.round(baseStrokes * pressure));
         const distance = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
-        const segmentLength = Math.min(8, distance / 6); // Shorter segments
+        const segmentLength = Math.min(8 / resolution, distance / (6 * resolution)); // Shorter segments with higher resolution
         
         for (let stroke = 0; stroke < numStrokes; stroke++) {
-            const offsetY = (Math.random() - 0.5) * thickness * 0.2; // Reduced offset
-            const offsetX = (Math.random() - 0.5) * thickness * 0.05;
+            const offsetY = (Math.random() - 0.5) * thickness * 0.2 / resolution; // Scale offset with resolution
+            const offsetX = (Math.random() - 0.5) * thickness * 0.05 / resolution;
             
             // Skip some strokes randomly at lower pressure for more gaps
             if (Math.random() > pressure * 0.8) continue;
