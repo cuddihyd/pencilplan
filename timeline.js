@@ -14,24 +14,14 @@ class TimelineRenderer {
         this.setupEventListeners();
     }
 
+
+
     setupCanvas() {
-        // High resolution rendering
-        const pixelRatio = window.devicePixelRatio || 1;
-        const scaleFactor = 2; // Additional scaling for better quality
-        const totalScale = pixelRatio * scaleFactor;
-        
+        // Initial setup with default dimensions
         this.displayWidth = 1200;
         this.displayHeight = 800;
         
-        this.canvas.width = this.displayWidth * totalScale;
-        this.canvas.height = this.displayHeight * totalScale;
-        this.canvas.style.width = this.displayWidth + 'px';
-        this.canvas.style.height = this.displayHeight + 'px';
-        
-        this.ctx.scale(totalScale, totalScale);
-        
-        // Store the scale for coordinate calculations
-        this.scale = totalScale;
+        this.resizeCanvas();
         
         this.pencil = new PencilCanvas(this.canvas, {
             color: '#336699',
@@ -39,6 +29,77 @@ class TimelineRenderer {
             density: 0.8,
             alpha: 0.9
         });
+    }
+
+    calculateRequiredDimensions() {
+        if (!this.data) return { width: 1200, height: 800 };
+        
+        // Calculate required width (timeline span + margins)
+        const requiredWidth = 1200; // Keep timeline width constant
+        
+        // Calculate required height based on themes
+        const themes = this.getUniqueThemes();
+        let totalHeight = this.margin.top + this.margin.bottom + 100; // Base height
+        
+        // Add height for each theme
+        themes.forEach(theme => {
+            const themeGroup = this.getThemeContent(theme);
+            const labelHeight = this.calculateLabelHeight(theme);
+            const contentHeight = this.calculateThemeContentHeight(themeGroup.projects, themeGroup.epics);
+            const themeHeight = Math.max(labelHeight + 20, contentHeight + 40);
+            totalHeight += themeHeight;
+        });
+        
+        // Add extra buffer at the bottom
+        const bottomBuffer = 200; // Increased buffer to ensure themes don't get cut off
+        totalHeight += bottomBuffer;
+        
+        const finalHeight = Math.max(800, totalHeight); // Ensure adequate minimum height
+        return { width: requiredWidth, height: finalHeight };
+    }
+
+    getThemeContent(themeName) {
+        const themeGroup = { projects: [], epics: [] };
+        
+        // Get standalone projects for this theme
+        if (this.data && this.data.projectLines && Array.isArray(this.data.projectLines)) {
+            this.data.projectLines.forEach(project => {
+                if (project && project.theme === themeName) {
+                    themeGroup.projects.push(project);
+                }
+            });
+        }
+        
+        // Get epics for this theme
+        if (this.data && this.data.epics && Array.isArray(this.data.epics)) {
+            this.data.epics.forEach(epic => {
+                if (epic && epic.theme === themeName) {
+                    themeGroup.epics.push(epic);
+                }
+            });
+        }
+        
+        
+        return themeGroup;
+    }
+
+    resizeCanvas() {
+        const dimensions = this.calculateRequiredDimensions();
+        this.displayWidth = dimensions.width;
+        this.displayHeight = dimensions.height;
+        
+        // High resolution rendering
+        const pixelRatio = window.devicePixelRatio || 1;
+        const scaleFactor = 2;
+        const totalScale = pixelRatio * scaleFactor;
+        
+        this.canvas.width = this.displayWidth * totalScale;
+        this.canvas.height = this.displayHeight * totalScale;
+        this.canvas.style.width = this.displayWidth + 'px';
+        this.canvas.style.height = this.displayHeight + 'px';
+        
+        this.ctx.scale(totalScale, totalScale);
+        this.scale = totalScale;
     }
 
     setupEventListeners() {
@@ -105,7 +166,8 @@ class TimelineRenderer {
             .then(response => response.json())
             .then(data => {
                 this.data = data;
-                // Render once initially
+                // Resize canvas to fit content and render
+                this.resizeCanvas();
                 this.renderTimeline();
             })
             .catch(err => {
@@ -120,8 +182,9 @@ class TimelineRenderer {
         reader.onload = (e) => {
             try {
                 this.data = JSON.parse(e.target.result);
-                // Stop any current animation and render once
+                // Stop any current animation and resize canvas to fit content
                 this.stopAnimation();
+                this.resizeCanvas();
                 this.renderTimeline();
             } catch (err) {
                 alert('Error parsing JSON file: ' + err.message);
@@ -139,18 +202,21 @@ class TimelineRenderer {
     }
 
     calculateTimelinePositions() {
-        if (!this.data) return { projects: [], epics: [] };
+        if (!this.data) return { projects: [], epics: [], themes: [] };
 
         const startDate = this.parseDate(this.data.tbeg);
         const endDate = this.parseDate(this.data.tend);
         const totalDuration = endDate - startDate;
         const timelineWidth = this.displayWidth - this.margin.left - this.margin.right;
         
+        // Collect all unique themes
+        const themes = this.getUniqueThemes();
+        
         let allProjects = [];
         let epics = [];
         
         // Process standalone projects
-        if (this.data.projectLines) {
+        if (this.data.projectLines && Array.isArray(this.data.projectLines)) {
             const standaloneProjects = this.data.projectLines.map(project => 
                 this.processProject(project, startDate, totalDuration, timelineWidth, null)
             );
@@ -158,45 +224,65 @@ class TimelineRenderer {
         }
         
         // Process epics and their projects
-        if (this.data.epics) {
+        if (this.data.epics && Array.isArray(this.data.epics)) {
             this.data.epics.forEach((epic, epicIndex) => {
-                const epicProjects = epic.projectLines.map(project => 
-                    this.processProject(project, startDate, totalDuration, timelineWidth, epicIndex)
-                );
-                allProjects.push(...epicProjects);
+                if (epic && epic.projectLines && Array.isArray(epic.projectLines)) {
+                    const epicProjects = epic.projectLines.map(project => {
+                        const processedProject = this.processProject(project, startDate, totalDuration, timelineWidth, epicIndex);
+                        // Inherit theme from epic if project doesn't have one
+                        if (!processedProject.theme && epic.theme) {
+                            processedProject.theme = epic.theme;
+                        }
+                        return processedProject;
+                    });
+                    allProjects.push(...epicProjects);
                 
-                // Calculate epic boundaries
-                const minX = Math.min(...epicProjects.map(p => p.x1));
-                const maxX = Math.max(...epicProjects.map(p => p.x3 || p.x2));
-                
-                epics.push({
-                    name: epic.name,
-                    projects: epicProjects,
-                    x1: minX,
-                    x2: maxX,
-                    epicIndex: epicIndex,
-                    pencilPressure: parseFloat(epic.pencilPressure) || this.data.pencilPressure || 0.85
-                });
+                    // Calculate epic boundaries
+                    if (epicProjects.length > 0) {
+                        const minX = Math.min(...epicProjects.map(p => p.x1));
+                        const maxX = Math.max(...epicProjects.map(p => p.x3 || p.x2));
+                        
+                        epics.push({
+                            name: epic.name,
+                            theme: epic.theme,
+                            projects: epicProjects,
+                            x1: minX,
+                            x2: maxX,
+                            epicIndex: epicIndex,
+                            pencilPressure: parseFloat(epic.pencilPressure) || this.data.pencilPressure || 0.85
+                        });
+                    }
+                }
             });
         }
         
-        const positionedProjects = this.resolveCollisions(allProjects);
+        const positionedData = this.resolveCollisionsWithThemes(allProjects, epics, themes);
         
-        // Update epic y positions based only on projects within that epic
-        epics.forEach(epic => {
-            const epicProjects = positionedProjects.filter(p => p.epicIndex === epic.epicIndex);
-            if (epicProjects.length > 0) {
-                const epicProjectYs = epicProjects.map(p => p.y);
-                epic.minY = Math.min(...epicProjectYs);
-                epic.maxY = Math.max(...epicProjectYs);
-                
-                // Update epic x boundaries to match only its projects
-                epic.x1 = Math.min(...epicProjects.map(p => p.x1));
-                epic.x2 = Math.max(...epicProjects.map(p => p.x3 || p.x2));
-            }
-        });
         
-        return { projects: positionedProjects, epics: epics };
+        return positionedData;
+    }
+
+    getUniqueThemes() {
+        const themes = new Set();
+        
+        // Collect themes from standalone projects
+        if (this.data && this.data.projectLines && Array.isArray(this.data.projectLines)) {
+            this.data.projectLines.forEach(project => {
+                if (project && project.theme) {
+                    themes.add(project.theme);
+                }
+            });
+        }
+        
+        // Collect themes from epics
+        if (this.data && this.data.epics && Array.isArray(this.data.epics)) {
+            this.data.epics.forEach(epic => {
+                if (epic && epic.theme) themes.add(epic.theme);
+            });
+        }
+        
+        const themeList = Array.from(themes).sort();
+        return themeList;
     }
 
     processProject(project, startDate, totalDuration, timelineWidth, epicIndex) {
@@ -232,6 +318,119 @@ class TimelineRenderer {
             tailEndDate: projTailEnd,
             epicIndex: epicIndex
         };
+    }
+
+    resolveCollisionsWithThemes(projects, epics, themes) {
+        const themeData = [];
+        
+        
+        // First pass: group projects and epics by theme
+        const themeGroups = {};
+        
+        // Group standalone projects by theme
+        projects.forEach(project => {
+            const theme = project.theme || 'Default';
+            if (!themeGroups[theme]) {
+                themeGroups[theme] = { projects: [], epics: [] };
+            }
+            themeGroups[theme].projects.push(project);
+        });
+        
+        // Group epics by theme
+        epics.forEach(epic => {
+            const theme = epic.theme || 'Default';
+            if (!themeGroups[theme]) {
+                themeGroups[theme] = { projects: [], epics: [] };
+            }
+            themeGroups[theme].epics.push(epic);
+        });
+        
+        // Calculate theme heights and positions
+        let currentY = this.margin.top;
+        
+        themes.forEach(theme => {
+            const group = themeGroups[theme] || { projects: [], epics: [] };
+            // Calculate required height for this theme
+            const labelHeight = this.calculateLabelHeight(theme);
+            const contentHeight = this.calculateThemeContentHeight(group.projects, group.epics);
+            const themeHeight = Math.max(labelHeight + 20, contentHeight + 40); // 40px padding
+            
+            const themeObj = {
+                name: theme,
+                y: currentY,
+                height: themeHeight,
+                projects: [],
+                epics: group.epics
+            };
+            
+            // Position projects within this theme
+            let projectY = currentY + 20; // Top padding
+            group.projects.forEach(project => {
+                project.y = projectY;
+                projectY += this.lineHeight;
+                themeObj.projects.push(project);
+            });
+            
+            // Update epic boundaries for this theme  
+            group.epics.forEach(epic => {
+                const epicProjects = epic.projects;
+                if (epicProjects.length > 0) {
+                    // Position epic projects within the theme
+                    epicProjects.forEach(epicProject => {
+                        // Find the project in allProjects and update its position
+                        const projectInAll = projects.find(p => p === epicProject);
+                        if (projectInAll) {
+                            projectInAll.y = projectY;
+                        }
+                        epicProject.y = projectY;
+                        
+                        // Add epic project to theme's project list for rendering
+                        themeObj.projects.push(epicProject);
+                        
+                        projectY += this.lineHeight;
+                    });
+                    
+                    const projectYs = epicProjects.map(p => p.y);
+                    epic.minY = Math.min(...projectYs);
+                    epic.maxY = Math.max(...projectYs);
+                }
+            });
+            
+            themeData.push(themeObj);
+            currentY += themeHeight;
+        });
+        
+        // Collect all positioned projects from all themes
+        const allPositionedProjects = [];
+        themeData.forEach(theme => {
+            allPositionedProjects.push(...theme.projects);
+        });
+        
+        
+        return { projects: allPositionedProjects, epics, themes: themeData };
+    }
+
+    calculateLabelHeight(themeName) {
+        // Estimate height needed for vertical label with line breaks
+        const words = themeName.split(' ');
+        const maxWordsPerLine = 2;
+        const lines = Math.ceil(words.length / maxWordsPerLine);
+        return lines * 20; // Approximate 20px per line
+    }
+
+    calculateThemeContentHeight(projects, epics) {
+        let totalLines = Array.isArray(projects) ? projects.length : 0;
+        
+        // Add lines for epic projects
+        if (Array.isArray(epics)) {
+            epics.forEach(epic => {
+                if (epic && epic.projects && Array.isArray(epic.projects)) {
+                    totalLines += epic.projects.length;
+                }
+            });
+        }
+        
+        return Math.max(80, totalLines * this.lineHeight); // Minimum 80px
     }
 
     resolveCollisions(projects) {
@@ -361,12 +560,17 @@ class TimelineRenderer {
     renderTimeline() {
         this.clearCanvas();
         
+        
         if (!this.data) return;
 
-        const { projects, epics } = this.calculateTimelinePositions();
+        const { projects, epics, themes } = this.calculateTimelinePositions();
         
         this.drawTopTimeline();
-        this.drawTimeAxis();
+        
+        // Draw theme swim lanes
+        themes.forEach(theme => {
+            this.drawThemeLane(theme);
+        });
         
         // Draw epic groupings first (backgrounds)
         epics.forEach(epic => {
@@ -485,6 +689,7 @@ class TimelineRenderer {
         const pressure = project.pencilPressure || this.data.pencilPressure || 0.85;
         const thickness = project.pencilThickness || 6;
         
+        
         // Draw main line from start to end
         this.drawPencilLine(project.x1, project.y, project.x2, project.y, color, thickness, pressure);
         
@@ -517,6 +722,57 @@ class TimelineRenderer {
             
             this.ctx.fillText(char, currentX, y);
             currentX += charSpacing;
+        });
+        
+        this.ctx.restore();
+    }
+
+    drawThemeLane(theme) {
+        // Draw horizontal line to separate themes
+        const y = theme.y;
+        const lineY = y - 10;
+        
+        this.ctx.strokeStyle = '#DDDDDD';
+        this.ctx.lineWidth = 1;
+        this.ctx.beginPath();
+        this.ctx.moveTo(this.margin.left, lineY);
+        this.ctx.lineTo(this.displayWidth - this.margin.right, lineY);
+        this.ctx.stroke();
+        
+        // Draw vertical theme label
+        this.drawVerticalThemeLabel(theme.name, y + theme.height / 2);
+    }
+
+    drawVerticalThemeLabel(text, centerY) {
+        this.ctx.save();
+        
+        // Position at left margin
+        const x = 50; // Moved further right to accommodate line breaks
+        
+        this.ctx.translate(x, centerY);
+        this.ctx.rotate(-Math.PI / 2); // Rotate 90 degrees counter-clockwise
+        
+        this.ctx.fillStyle = '#666666';
+        this.ctx.font = 'bold 14px "Permanent Marker", cursive';
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'middle';
+        
+        // Break text into lines if needed
+        const words = text.split(' ');
+        const maxWordsPerLine = 2;
+        const lines = [];
+        
+        for (let i = 0; i < words.length; i += maxWordsPerLine) {
+            const line = words.slice(i, i + maxWordsPerLine).join(' ');
+            lines.push(line);
+        }
+        
+        // Draw each line
+        const lineSpacing = 18;
+        const startY = -(lines.length - 1) * lineSpacing / 2;
+        
+        lines.forEach((line, index) => {
+            this.ctx.fillText(line, startY + (index * lineSpacing), 0);
         });
         
         this.ctx.restore();
