@@ -158,12 +158,82 @@ class TimelineRenderer {
 
         const projects = this.calculateTimelinePositions();
         
+        this.drawTopTimeline();
         this.drawTimeAxis();
         
         projects.forEach(project => {
             this.drawProjectLine(project);
             this.drawProjectLabel(project);
         });
+    }
+
+    drawTopTimeline() {
+        const startDate = this.parseDate(this.data.tbeg);
+        const endDate = this.parseDate(this.data.tend);
+        const timelineWidth = this.canvas.width - this.margin.left - this.margin.right;
+        const totalDuration = endDate - startDate;
+        
+        const y = 30;
+        
+        // Draw main timeline line
+        this.ctx.strokeStyle = '#CCCCCC';
+        this.ctx.lineWidth = 1;
+        this.ctx.beginPath();
+        this.ctx.moveTo(this.margin.left, y);
+        this.ctx.lineTo(this.margin.left + timelineWidth, y);
+        this.ctx.stroke();
+        
+        // Generate year and quarter markers
+        const startYear = startDate.getFullYear();
+        const endYear = endDate.getFullYear();
+        
+        for (let year = startYear; year <= endYear; year++) {
+            // Year marker
+            const yearStart = new Date(year, 0, 1);
+            if (yearStart >= startDate && yearStart <= endDate) {
+                const ratio = (yearStart - startDate) / totalDuration;
+                const x = this.margin.left + (ratio * timelineWidth);
+                
+                // Draw year tick (longer)
+                this.ctx.strokeStyle = '#CCCCCC';
+                this.ctx.lineWidth = 2;
+                this.ctx.beginPath();
+                this.ctx.moveTo(x, y - 8);
+                this.ctx.lineTo(x, y + 8);
+                this.ctx.stroke();
+                
+                // Draw year label
+                this.ctx.fillStyle = '#666666';
+                this.ctx.font = 'bold 11px Arial, sans-serif';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText(year.toString(), x, y - 15);
+            }
+            
+            // Quarter markers
+            for (let quarter = 1; quarter <= 4; quarter++) {
+                const quarterMonth = (quarter - 1) * 3;
+                const quarterStart = new Date(year, quarterMonth, 1);
+                
+                if (quarterStart >= startDate && quarterStart <= endDate && quarter > 1) {
+                    const ratio = (quarterStart - startDate) / totalDuration;
+                    const x = this.margin.left + (ratio * timelineWidth);
+                    
+                    // Draw quarter tick (shorter)
+                    this.ctx.strokeStyle = '#DDDDDD';
+                    this.ctx.lineWidth = 1;
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(x, y - 4);
+                    this.ctx.lineTo(x, y + 4);
+                    this.ctx.stroke();
+                    
+                    // Draw quarter label
+                    this.ctx.fillStyle = '#AAAAAA';
+                    this.ctx.font = '9px Arial, sans-serif';
+                    this.ctx.textAlign = 'center';
+                    this.ctx.fillText(`Q${quarter}`, x, y - 8);
+                }
+            }
+        }
     }
 
     drawTimeAxis() {
@@ -195,7 +265,8 @@ class TimelineRenderer {
     drawProjectLine(project) {
         const color = this.getColorHex(project.color || '#336699');
         const pressure = project.pencilPressure || this.data.pencilPressure || 0.85;
-        this.drawPencilLine(project.x1, project.y, project.x2, project.y, color, 6, pressure);
+        const thickness = project.pencilThickness || 6;
+        this.drawPencilLine(project.x1, project.y, project.x2, project.y, color, thickness, pressure);
     }
 
     drawProjectLabel(project) {
