@@ -205,10 +205,11 @@ class TimelineRenderer {
             }
         });
         
-        // Place epic groups first
+        // Place epic groups first with spacing between them
+        let currentLane = 0;
         Object.keys(epicGroups).forEach(epicIndex => {
             const epicProjects = epicGroups[epicIndex].sort((a, b) => a.startDate - b.startDate);
-            let epicStartLane = this.findAvailableLaneRange(lanes, epicProjects.length);
+            let epicStartLane = Math.max(currentLane, this.findAvailableLaneRange(lanes, epicProjects.length));
             
             epicProjects.forEach((project, index) => {
                 const laneIndex = epicStartLane + index;
@@ -222,10 +223,13 @@ class TimelineRenderer {
             // Record epic box boundaries for collision avoidance
             const minX = Math.min(...epicProjects.map(p => p.x1));
             const maxX = Math.max(...epicProjects.map(p => p.x3 || p.x2));
-            const minY = this.margin.top + (epicStartLane * this.lineHeight) - 25;
+            const minY = this.margin.top + (epicStartLane * this.lineHeight) - 35;
             const maxY = this.margin.top + ((epicStartLane + epicProjects.length - 1) * this.lineHeight) + 15;
             
             epicBoxes.push({ minX, maxX, minY, maxY });
+            
+            // Leave 2 lanes of space after each epic for separation
+            currentLane = epicStartLane + epicProjects.length + 2;
         });
         
         // Second pass: place standalone projects avoiding epic boxes
@@ -493,7 +497,7 @@ class TimelineRenderer {
     drawEpicLabel(epic) {
         // Position epic label above the grouped projects
         const x = epic.x1;
-        const y = epic.minY - 30;
+        const y = epic.minY - 40;
         
         this.ctx.fillStyle = '#444444';
         this.ctx.font = 'bold 14px "Permanent Marker", cursive';
