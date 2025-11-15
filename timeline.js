@@ -7,6 +7,8 @@ class TimelineRenderer {
         this.margin = { top: 120, bottom: 60, left: 120, right: 60 };
         this.lineHeight = 40;
         this.textHeight = 12;
+        this.isPlaying = false;
+        this.animationId = null;
         
         this.setupCanvas();
         this.setupEventListeners();
@@ -44,19 +46,58 @@ class TimelineRenderer {
             this.loadFile(e.target.files[0]);
         });
         
-        document.getElementById('render-timeline').addEventListener('click', () => {
-            if (this.data) {
-                this.renderTimeline();
-            } else {
-                alert('Please load a JSON file first');
-            }
+        document.getElementById('play-button').addEventListener('click', () => {
+            this.startAnimation();
+        });
+        
+        document.getElementById('stop-button').addEventListener('click', () => {
+            this.stopAnimation();
         });
         
         document.getElementById('clear-canvas').addEventListener('click', () => {
+            this.stopAnimation();
             this.clearCanvas();
         });
 
         this.loadDefaultData();
+    }
+
+    startAnimation() {
+        if (!this.data) {
+            alert('Please load a JSON file first');
+            return;
+        }
+        
+        if (this.isPlaying) return;
+        
+        this.isPlaying = true;
+        document.getElementById('play-button').disabled = true;
+        document.getElementById('stop-button').disabled = false;
+        
+        const animate = () => {
+            if (!this.isPlaying) return;
+            
+            this.renderTimeline();
+            
+            // Continue animation at ~10 FPS for visible scintillation
+            this.animationId = setTimeout(() => {
+                requestAnimationFrame(animate);
+            }, 100);
+        };
+        
+        animate();
+    }
+
+    stopAnimation() {
+        this.isPlaying = false;
+        
+        if (this.animationId) {
+            clearTimeout(this.animationId);
+            this.animationId = null;
+        }
+        
+        document.getElementById('play-button').disabled = false;
+        document.getElementById('stop-button').disabled = true;
     }
 
     loadDefaultData() {
@@ -64,6 +105,7 @@ class TimelineRenderer {
             .then(response => response.json())
             .then(data => {
                 this.data = data;
+                // Render once initially
                 this.renderTimeline();
             })
             .catch(err => {
@@ -78,6 +120,8 @@ class TimelineRenderer {
         reader.onload = (e) => {
             try {
                 this.data = JSON.parse(e.target.result);
+                // Stop any current animation and render once
+                this.stopAnimation();
                 this.renderTimeline();
             } catch (err) {
                 alert('Error parsing JSON file: ' + err.message);
