@@ -90,20 +90,25 @@ class TimelineRenderer {
         const projects = this.data.projectLines.map(project => {
             const projStart = this.parseDate(project.tbeg);
             const projEnd = this.parseDate(project.tend);
+            const projTailEnd = project.tailEnd ? this.parseDate(project.tailEnd) : null;
             
             const startRatio = (projStart - startDate) / totalDuration;
             const endRatio = (projEnd - startDate) / totalDuration;
+            const tailEndRatio = projTailEnd ? (projTailEnd - startDate) / totalDuration : null;
             
             const x1 = this.margin.left + (startRatio * timelineWidth);
             const x2 = this.margin.left + (endRatio * timelineWidth);
+            const x3 = projTailEnd ? this.margin.left + (tailEndRatio * timelineWidth) : null;
             
             return {
                 ...project,
                 x1: Math.round(x1),
                 x2: Math.round(x2),
+                x3: x3 ? Math.round(x3) : null,
                 y: 0,
                 startDate: projStart,
-                endDate: projEnd
+                endDate: projEnd,
+                tailEndDate: projTailEnd
             };
         });
 
@@ -148,7 +153,9 @@ class TimelineRenderer {
 
     hasOverlap(project1, project2) {
         const buffer = 10;
-        return !(project1.x2 + buffer < project2.x1 || project2.x2 + buffer < project1.x1);
+        const p1End = project1.x3 || project1.x2;
+        const p2End = project2.x3 || project2.x2;
+        return !(p1End + buffer < project2.x1 || p2End + buffer < project1.x1);
     }
 
     renderTimeline() {
@@ -266,7 +273,14 @@ class TimelineRenderer {
         const color = this.getColorHex(project.color || '#336699');
         const pressure = project.pencilPressure || this.data.pencilPressure || 0.85;
         const thickness = project.pencilThickness || 6;
+        
+        // Draw main line from start to end
         this.drawPencilLine(project.x1, project.y, project.x2, project.y, color, thickness, pressure);
+        
+        // Draw fading tail if tailEnd exists
+        if (project.x3 && project.x3 > project.x2) {
+            this.drawFadingTail(project.x2, project.y, project.x3, project.y, color, thickness, pressure);
+        }
     }
 
     drawProjectLabel(project) {
@@ -295,6 +309,26 @@ class TimelineRenderer {
         });
         
         this.ctx.restore();
+    }
+
+    drawFadingTail(x1, y1, x2, y2, color = '#333333', thickness = 2, pressure = 1.0) {
+        const tailLength = x2 - x1;
+        const numSegments = Math.max(5, Math.floor(tailLength / 10));
+        const segmentLength = tailLength / numSegments;
+        
+        for (let i = 0; i < numSegments; i++) {
+            const startX = x1 + (i * segmentLength);
+            const endX = x1 + ((i + 1) * segmentLength);
+            const progress = i / numSegments;
+            
+            // Slower fade using square root curve - stays stronger longer
+            const fadeRatio = Math.sqrt(1 - progress);
+            
+            const segmentPressure = pressure * fadeRatio;
+            const segmentThickness = thickness * Math.max(0.4, fadeRatio);
+            
+            this.drawPencilLine(startX, y1, endX, y2, color, segmentThickness, segmentPressure);
+        }
     }
 
     drawPencilLine(x1, y1, x2, y2, color = '#333333', thickness = 2, pressure = 1.0) {

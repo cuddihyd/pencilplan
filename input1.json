@@ -22,6 +22,7 @@
 	"name": "do something",
 	"tbeg": "2025-07-01",
 	"tend": "2025-09-01",
+	"tailEnd": "2025-12-31",
 	"color": "darkGreen",
 	"pencilPressure": 0.7
    }
