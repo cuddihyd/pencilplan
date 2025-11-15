@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Project Timeline Renderer</title>
+    <style>
+        body { 
+            margin: 0; 
+            background-color: #f8f8f8; 
+            font-family: monospace;
+        }
+        #timeline-canvas { 
+            border: 1px solid #ccc; 
+            background-color: white;
+            display: block;
+            margin: 20px auto;
+        }
+        #controls {
+            text-align: center;
+            margin: 20px;
+        }
+        button {
+            margin: 5px;
+            padding: 10px 20px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div id="controls">
+        <input type="file" id="file-input" accept=".json">
+        <button id="render-timeline">Render Timeline</button>
+        <button id="clear-canvas">Clear Canvas</button>
+    </div>
+    
+    <canvas id="timeline-canvas"></canvas>
+    
+    <script src="PencilCanvas.js"></script>
+    <script src="timeline.js"></script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+"tbeg": "2024-01-01",
+"tend": "2027-01-01",
+"pencilPressure": 0.6,
+"projectLines": [
+   {
+	"name": "build system x",
+	"tbeg": "2025-01-01",
+	"tend": "2025-06-01",
+	"color": "blue"
+   },
+   {
+	"name": "retire system y",
+	"tbeg": "2025-03-01",
+	"tend": "2025-09-01",
+	"color": "violet"
+   }
+]
+}
