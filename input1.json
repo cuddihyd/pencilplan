@@ -7,6 +7,7 @@
 		{
 			"name": "Big Thing",
 			"theme": "Business Platform",
+			"topBuffer": 5,
 			"projectLines": [
 				{
 					"name": "retire system w",
@@ -38,6 +39,7 @@
 			"name": "Another Big Thing",
 			"theme": "Infrastructure",
 			"pencilPressure": "0.3",
+			"topBuffer": 3,
 			"projectLines": [
 				{
 					"name": "retire system xx",

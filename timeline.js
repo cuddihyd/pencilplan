@@ -12,6 +12,7 @@ class TimelineRenderer {
         
         this.setupCanvas();
         this.setupEventListeners();
+        this.debugEl = document.getElementById('debug');
     }
 
 
@@ -350,10 +351,11 @@ class TimelineRenderer {
         
         themes.forEach(theme => {
             const group = themeGroups[theme] || { projects: [], epics: [] };
-            // Calculate required height for this theme
+            if (this.debugEl) this.debugEl.innerHTML += `<br>Theme "${theme}": ${group.projects.length} standalone, ${group.epics.length} epics<br>`;
+            // We'll calculate the actual theme height after positioning content
             const labelHeight = this.calculateLabelHeight(theme);
-            const contentHeight = this.calculateThemeContentHeight(group.projects, group.epics);
-            const themeHeight = Math.max(labelHeight + 20, contentHeight + 40); // 40px padding
+            // Start with minimum height, will adjust after positioning
+            let themeHeight = Math.max(labelHeight + 20, 60); // Minimum height
             
             const themeObj = {
                 name: theme,
@@ -364,10 +366,18 @@ class TimelineRenderer {
             };
             
             // Position projects within this theme
-            let projectY = currentY + 20; // Top padding
+            // Use the horizontal boundary line position as the reference point
+            const themeLineY = currentY - 10; // This matches the line drawing in drawThemeLane
+            const themeTopBuffer = 15; // Buffer space below theme boundary line
+            let projectY = themeLineY + themeTopBuffer; 
+            let maxContentY = projectY; // Track the maximum Y position of all content
+            if (this.debugEl) this.debugEl.innerHTML += `Theme "${theme}": boundary line at Y=${themeLineY}, content starts at Y=${projectY}<br>`;
+            
             group.projects.forEach(project => {
                 project.y = projectY;
+                if (this.debugEl) this.debugEl.innerHTML += `  Standalone "${project.name}": Y=${projectY}<br>`;
                 projectY += this.lineHeight;
+                maxContentY = Math.max(maxContentY, projectY);
                 themeObj.projects.push(project);
             });
             
@@ -375,6 +385,20 @@ class TimelineRenderer {
             group.epics.forEach(epic => {
                 const epicProjects = epic.projects;
                 if (epicProjects.length > 0) {
+                    // Add configurable top buffer for this epic (from the boundary line)
+                    const epicTopBuffer = parseFloat(epic.topBuffer) || themeTopBuffer; // Default to theme buffer if not specified
+                    
+                    // Position epic as a unit: label first, then box, then projects
+                    const epicLabelY = themeLineY + epicTopBuffer;
+                    const epicBoxStartY = epicLabelY + 8; // Smaller gap between label and box
+                    projectY = epicBoxStartY + 15; // 15px padding inside the box
+                    
+                    // Store positioning info for drawing
+                    epic.labelY = epicLabelY;
+                    epic.boxStartY = epicBoxStartY;
+                    
+                    if (this.debugEl) this.debugEl.innerHTML += `  Epic "${epic.name}": buffer=${epicTopBuffer}, label at Y=${epicLabelY}, box starts Y=${epicBoxStartY}, projects start Y=${projectY}<br>`;
+                    
                     // Position epic projects within the theme
                     epicProjects.forEach(epicProject => {
                         // Find the project in allProjects and update its position
@@ -383,21 +407,40 @@ class TimelineRenderer {
                             projectInAll.y = projectY;
                         }
                         epicProject.y = projectY;
+                        if (this.debugEl) this.debugEl.innerHTML += `    Epic project "${epicProject.name}": Y=${projectY}<br>`;
                         
                         // Add epic project to theme's project list for rendering
                         themeObj.projects.push(epicProject);
                         
                         projectY += this.lineHeight;
+                        maxContentY = Math.max(maxContentY, projectY);
                     });
                     
                     const projectYs = epicProjects.map(p => p.y);
                     epic.minY = Math.min(...projectYs);
                     epic.maxY = Math.max(...projectYs);
+                    epic.themeLineY = themeLineY; // Store theme line position for label positioning
                 }
             });
             
+            // Calculate actual theme height based on positioned content
+            const themeBottomBuffer = 15; // Buffer space after last content
+            const contentEndY = maxContentY + themeBottomBuffer; 
+            const actualContentHeight = contentEndY - themeLineY; // Height from boundary line to end of content
+            
+            // Use max of label height and actual content height
+            themeHeight = Math.max(labelHeight + 20, actualContentHeight);
+            themeObj.height = themeHeight;
+            
+            if (this.debugEl) this.debugEl.innerHTML += `Theme "${theme}": labelH=${labelHeight}, contentH=${actualContentHeight}, finalH=${themeHeight}<br>`;
+            if (this.debugEl) this.debugEl.innerHTML += `Theme "${theme}": spans from Y=${currentY} to Y=${currentY + themeHeight}, maxContentY=${maxContentY}<br>`;
+            
             themeData.push(themeObj);
-            currentY += themeHeight;
+            
+            // Ensure next theme starts after all content from this theme
+            // Add some padding between themes
+            const nextThemeStart = Math.max(currentY + themeHeight, contentEndY + 20);
+            currentY = nextThemeStart;
         });
         
         // Collect all positioned projects from all themes
@@ -560,6 +603,7 @@ class TimelineRenderer {
     renderTimeline() {
         this.clearCanvas();
         
+        if (this.debugEl) this.debugEl.innerHTML = '';
         
         if (!this.data) return;
 
@@ -782,9 +826,9 @@ class TimelineRenderer {
         // Draw pencil box with crosshatch fill using epic's pencil pressure
         const padding = 15;
         const x = epic.x1 - padding;
-        const y = epic.minY - 35;
+        const y = epic.boxStartY; // Use pre-calculated box start position
         const width = (epic.x2 - epic.x1) + (padding * 2);
-        const height = (epic.maxY - epic.minY) + 50;
+        const height = (epic.maxY - epic.boxStartY) + 20; // From box start to bottom of projects + padding
         
         this.drawPencilBox(x, y, width, height, epic.pencilPressure);
     }
@@ -825,9 +869,9 @@ class TimelineRenderer {
     }
 
     drawEpicLabel(epic) {
-        // Position epic label above the grouped projects
+        // Use pre-calculated label position
         const x = epic.x1;
-        const y = epic.minY - 40;
+        const y = epic.labelY; // Use pre-calculated label position
         
         this.ctx.fillStyle = '#444444';
         this.ctx.font = 'bold 14px "Permanent Marker", cursive';
