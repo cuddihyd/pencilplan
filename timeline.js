@@ -33,8 +33,8 @@ class TimelineRenderer {
         
         this.pencil = new PencilCanvas(this.canvas, {
             color: '#336699',
-            thickness: 4,
-            density: 0.5,
+            thickness: 2,
+            density: 0.8,
             alpha: 0.9
         });
     }
@@ -532,18 +532,18 @@ class TimelineRenderer {
         const originalAlpha = this.pencil.options.alpha;
         
         this.pencil.options.color = color;
-        this.pencil.options.thickness = thickness;
+        this.pencil.options.thickness = Math.max(1, thickness * 0.5); // Smaller base thickness
         this.pencil.options.alpha = originalAlpha * pressure;
         
-        // Adjust number of strokes based on pressure
-        const baseStrokes = 8;
+        // Increase stroke count to compensate for smaller dots
+        const baseStrokes = 16; // Doubled from 8
         const numStrokes = Math.max(1, Math.round(baseStrokes * pressure));
         const distance = Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2);
-        const segmentLength = Math.min(15, distance / 4);
+        const segmentLength = Math.min(8, distance / 6); // Shorter segments
         
         for (let stroke = 0; stroke < numStrokes; stroke++) {
-            const offsetY = (Math.random() - 0.5) * thickness * 0.3;
-            const offsetX = (Math.random() - 0.5) * thickness * 0.1;
+            const offsetY = (Math.random() - 0.5) * thickness * 0.2; // Reduced offset
+            const offsetX = (Math.random() - 0.5) * thickness * 0.05;
             
             // Skip some strokes randomly at lower pressure for more gaps
             if (Math.random() > pressure * 0.8) continue;
