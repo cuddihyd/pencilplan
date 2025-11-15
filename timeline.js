@@ -194,7 +194,7 @@ class TimelineRenderer {
 
     drawProjectLine(project) {
         const color = this.getColorHex(project.color || '#336699');
-        const pressure = this.data.pencilPressure || 1.0;
+        const pressure = project.pencilPressure || this.data.pencilPressure || 0.85;
         this.drawPencilLine(project.x1, project.y, project.x2, project.y, color, 6, pressure);
     }
 
@@ -215,15 +215,12 @@ class TimelineRenderer {
         
         chars.forEach((char, index) => {
             this.ctx.fillStyle = color;
-            this.ctx.font = `${size}px monospace`;
+            this.ctx.font = `${size}px "Permanent Marker", cursive`;
             this.ctx.textAlign = 'left';
             this.ctx.textBaseline = 'middle';
             
-            const jitterX = (Math.random() - 0.5) * 0.5;
-            const jitterY = (Math.random() - 0.5) * 0.8;
-            
-            this.ctx.fillText(char, currentX + jitterX, y + jitterY);
-            currentX += charSpacing + (Math.random() - 0.5) * 1;
+            this.ctx.fillText(char, currentX, y);
+            currentX += charSpacing;
         });
         
         this.ctx.restore();
@@ -274,6 +271,7 @@ class TimelineRenderer {
             'red': '#CC3333',
             'blue': '#3366CC',
             'green': '#66CC33',
+            'darkgreen': '#336633',
             'yellow': '#CCCC33',
             'orange': '#CC9933',
             'purple': '#9933CC',

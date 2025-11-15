@@ -7,13 +7,22 @@
 	"name": "build system x",
 	"tbeg": "2025-01-01",
 	"tend": "2025-06-01",
-	"color": "blue"
+ 	"color": "blue",
+	"pencilPressure": 0.9
    },
    {
 	"name": "retire system y",
 	"tbeg": "2025-03-01",
 	"tend": "2025-09-01",
-	"color": "violet"
+	"color": "violet",
+	"pencilPressure": 0.3
+   },
+   {
+	"name": "do something",
+	"tbeg": "2025-07-01",
+	"tend": "2025-09-01",
+	"color": "darkGreen",
+	"pencilPressure": 0.7
    }
 ]
 }
